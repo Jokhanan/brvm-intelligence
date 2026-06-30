@@ -142,7 +142,11 @@ svg.chart{width:100%;height:auto;display:block;font-family:'Space Mono',monospac
    <div class="panel">
      <div class="eyebrow">Lecture technique & fondamentale</div>
      <div class="tagrid" id="tagrid"></div>
-     <div style="margin-top:1rem"><button class="ai-btn" id="aibtn">🤖 Demander l'analyse de l'IA</button></div>
+     <div style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+       <input type="password" id="apikey" placeholder="Clé API Anthropic (sk-ant-...)" style="flex:1;min-width:220px">
+       <button class="ai-btn" id="aibtn">🤖 Demander l'analyse de l'IA</button>
+     </div>
+     <p class="foot" style="margin-top:.4rem">La clé n'est jamais envoyée nulle part sauf à <code>api.anthropic.com</code> ; elle reste stockée uniquement dans ton navigateur (localStorage). <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Obtenir une clé</a>.</p>
      <div class="ai-out" id="aiout"></div>
    </div>
   </div>
@@ -337,8 +341,14 @@ function renderAnalyse(){
 }
 
 /* ===== CONSEIL IA (appel à Claude) ===== */
+const apikeyInput=document.getElementById('apikey');
+apikeyInput.value=localStorage.getItem('brvm_anthropic_key')||'';
+apikeyInput.onchange=()=>localStorage.setItem('brvm_anthropic_key',apikeyInput.value.trim());
 document.getElementById('aibtn').onclick=async()=>{
   if(!CURRENT_TA)return; const t=CURRENT_TA, r=t.r, out=document.getElementById('aiout'), btn=document.getElementById('aibtn');
+  const apiKey=apikeyInput.value.trim();
+  if(!apiKey){ out.classList.add('on'); out.innerHTML='<span style="color:#D68A75">Colle ta clé API Anthropic ci-dessus pour activer l\'analyse IA (elle reste dans ton navigateur, jamais transmise ailleurs).</span>'; return; }
+  localStorage.setItem('brvm_anthropic_key',apiKey);
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> Analyse en cours…'; out.classList.add('on');
   out.innerHTML='<span class="spin"></span> Claude analyse '+t.nom+'…';
   const prompt=`Tu es un analyste actions spécialiste de la BRVM (bourse régionale UEMOA). Analyse cette valeur pour un investisseur long terme (3-10 ans) de la diaspora. Sois concret, nuancé, et structuré. Réponds en français.
@@ -356,13 +366,14 @@ Structure ta réponse avec ces titres EXACTEMENT (préfixe ###) et 2-3 phrases m
 ### Avis
 (Dans "Avis", donne une classification claire — Strong Buy / Accumuler / Hold / Avoid — cohérente avec les données, et UNE phrase de justification. Rappelle en une ligne que la liquidité de la BRVM peut limiter l'exécution.)`;
   try{
-    const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
+    const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
     const data=await resp.json();
+    if(data.error)throw new Error(data.error.message||'Erreur API');
     let txt=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
     if(!txt)throw new Error('Réponse vide');
     txt=txt.replace(/^### (.+)$/gm,'<h4>$1</h4>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
     out.innerHTML=txt+'<div class="dis">Généré par Claude à la demande, à partir des données ci-dessus. Opinion d\'aide à la décision — ni conseil en investissement personnalisé, ni garantie. Vérifie toujours les états financiers d\'origine.</div>';
-  }catch(e){ out.innerHTML='<span style="color:#D68A75">Échec de l\'appel à l\'IA ('+e.message+'). Hors de l\'environnement Claude.ai, branche ta propre clé API (voir le plan Claude Code).</span>'; }
+  }catch(e){ out.innerHTML='<span style="color:#D68A75">Échec de l\'appel à l\'IA ('+e.message+'). Vérifie ta clé API (sk-ant-...) et ton crédit sur console.anthropic.com.</span>'; }
   btn.disabled=false; btn.innerHTML='🤖 Demander l\'analyse de l\'IA';
 };
 
