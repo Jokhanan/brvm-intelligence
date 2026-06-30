@@ -128,11 +128,17 @@ svg.chart{width:100%;height:auto;display:block;font-family:'Space Mono',monospac
    <span class="ctlbl">Période</span>
    <div class="seg" id="aper"><button data-p="6">6M</button><button data-p="12" class="on">1A</button><button data-p="60">5A</button><button data-p="max">Max</button></div>
    <label class="chk"><input type="checkbox" id="sma" checked> Moyennes mobiles</label>
+   <span class="ctlbl">MM courte</span><input type="number" id="smaFast" value="20" min="2" max="200" style="width:56px">
+   <span class="ctlbl">MM longue</span><input type="number" id="smaSlow" value="50" min="3" max="400" style="width:56px">
   </div>
   <div class="alayout">
-   <div class="panel"><div class="chartwrap" id="priceChart"></div></div>
-   <div class="panel"><div class="eyebrow" style="margin-bottom:.5rem">RSI (14)</div><div id="rsiChart"></div></div>
-   <div class="panel"><div class="eyebrow" style="margin-bottom:.5rem">MACD (12·26·9)</div><div id="macdChart"></div></div>
+   <div class="panel"><div class="chartwrap" id="priceChart" style="position:relative"></div></div>
+   <div class="panel"><div class="eyebrow" style="margin-bottom:.5rem">RSI (14)</div><div id="rsiChart" style="position:relative"></div></div>
+   <div class="panel"><div class="eyebrow" style="margin-bottom:.5rem">MACD (12·26·9)</div><div id="macdChart" style="position:relative"></div></div>
+   <div class="panel">
+     <div class="eyebrow">Fiche valeur</div>
+     <div class="tagrid" id="fiche"></div>
+   </div>
    <div class="panel">
      <div class="eyebrow">Lecture technique & fondamentale</div>
      <div class="tagrid" id="tagrid"></div>
@@ -206,6 +212,23 @@ function rsi(a,p=14){let g=0,l=0,out=Array(a.length).fill(null);for(let i=1;i<a.
 function macd(a){const e12=ema(a,12),e26=ema(a,26);const m=a.map((_,i)=>e12[i]-e26[i]);const s=ema(m,9);return{m,s,h:m.map((v,i)=>v-s[i])};}
 
 /* ===== SVG CHARTS ===== */
+function attachHover(el,W,H,xToIdx,n,onMove){
+  let tip=el.querySelector('.charttip');
+  if(!tip){tip=document.createElement('div');tip.className='charttip';tip.style.cssText='position:absolute;display:none;pointer-events:none;background:#1B1736;color:#F4EDE0;font:11px "Space Mono",monospace;padding:.3rem .5rem;border-radius:4px;white-space:pre;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.25)';el.appendChild(tip);}
+  const svg=el.querySelector('svg');
+  svg.onmousemove=(e)=>{
+    const rect=svg.getBoundingClientRect();
+    const x=(e.clientX-rect.left)/rect.width*W;
+    let i=Math.round(xToIdx(x)); if(i<0)i=0; if(i>n-1)i=n-1;
+    const r=onMove(i);
+    tip.textContent=r.text;
+    tip.style.display='block';
+    let left=(r.xPx/W)*rect.width+10, top=(r.yPx/H)*rect.height-10;
+    if(left+130>rect.width)left=(r.xPx/W)*rect.width-140;
+    tip.style.left=left+'px'; tip.style.top=Math.max(0,top)+'px';
+  };
+  svg.onmouseleave=()=>{tip.style.display='none';};
+}
 function lineChart(el,series,overlays,h=260){
   const W=720,H=h,P={l:48,r:14,t:12,b:24};const xs=series.map(d=>d[0]),ys=series.map(d=>d[1]);
   let all=[...ys];overlays.forEach(o=>o.data.forEach(v=>{if(v!=null)all.push(v);}));
@@ -218,6 +241,12 @@ function lineChart(el,series,overlays,h=260){
   let ov=overlays.map((o,k)=>`<path d="${path(o.data)}" fill="none" stroke="${COL[k+1]||'#999'}" stroke-width="1.1" opacity=".85"/>`).join('');
   let leg=overlays.map((o,k)=>`<tspan fill="${COL[k+1]}">■ ${o.name}  </tspan>`).join('');
   el.innerHTML=`<svg class="chart" viewBox="0 0 ${W} ${H}">${grid}<path d="${path(ys)}" fill="none" stroke="${COL[0]}" stroke-width="1.6"/>${ov}<text x="${P.l}" y="10" font-size="9">${leg}</text>${xl}</svg>`;
+  attachHover(el,W,H,x=>(x-P.l)/((W-P.l-P.r)/(series.length-1||1)),series.length,(i)=>{
+    const dd=xs[i];const dlabel=dd.length===6?(dd.slice(4,6)+'/'+dd.slice(2,4)+'/20'+dd.slice(0,2)):dd;
+    const lines=[dlabel,`Cours: ${Math.round(ys[i]).toLocaleString('fr-FR').replace(/ /g,' ')}`];
+    overlays.forEach(o=>{if(o.data[i]!=null)lines.push(`${o.name}: ${Math.round(o.data[i]).toLocaleString('fr-FR').replace(/ /g,' ')}`);});
+    return {text:lines.join(String.fromCharCode(10)),xPx:X(i),yPx:Y(ys[i])};
+  });
 }
 function subChart(el,series,vals,opts){
   const W=720,H=120,P={l:48,r:14,t:10,b:18};const n=vals.length;
@@ -231,6 +260,12 @@ function subChart(el,series,vals,opts){
   let main=`<path d="${path(vals)}" fill="none" stroke="${opts.c||'#1B1736'}" stroke-width="1.4"/>`;
   let sig=opts.sig?`<path d="${path(opts.sig)}" fill="none" stroke="#C8A24C" stroke-width="1.1"/>`:'';
   el.innerHTML=`<svg class="chart" viewBox="0 0 ${W} ${H}">${g}${extra}${main}${sig}</svg>`;
+  attachHover(el,W,H,x=>(x-P.l)/((W-P.l-P.r)/(n-1||1)),n,(i)=>{
+    const lines=[`Idx ${i}`,`Valeur: ${vals[i]!=null?vals[i].toFixed(2):'n/d'}`];
+    if(opts.sig&&opts.sig[i]!=null)lines.push(`Signal: ${opts.sig[i].toFixed(2)}`);
+    if(opts.hist&&opts.hist[i]!=null)lines.push(`Hist: ${opts.hist[i].toFixed(2)}`);
+    return {text:lines.join(String.fromCharCode(10)),xPx:X(i),yPx:vals[i]!=null?Y(vals[i]):H/2};
+  });
 }
 
 /* ===== ANALYSE ===== */
@@ -241,6 +276,8 @@ let APER='12';
 document.querySelectorAll('#aper button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#aper button').forEach(x=>x.classList.remove('on'));b.classList.add('on');APER=b.dataset.p;renderAnalyse();});
 document.getElementById('asel').onchange=renderAnalyse;
 document.getElementById('sma').onchange=renderAnalyse;
+document.getElementById('smaFast').onchange=renderAnalyse;
+document.getElementById('smaSlow').onchange=renderAnalyse;
 let CURRENT_TA=null;
 
 function renderAnalyse(){
@@ -252,10 +289,10 @@ function renderAnalyse(){
   else{const days=parseInt(APER)*21; series=H.d.slice(-days).map(d=>[d[0],d[1]]); if(series.length<10)series=H.d.map(d=>[d[0],d[1]]);}
   const closes=series.map(d=>d[1]);
   const ov=[];
+  const fastP=parseInt(document.getElementById('smaFast').value)||20, slowP=parseInt(document.getElementById('smaSlow').value)||50;
   if(document.getElementById('sma').checked){
-    const dailyCloses=H.d.map(d=>d[1]);
-    if(APER!=='max'){ const s20=sma(closes,20),s50=sma(closes,50); ov.push({name:'MM20',data:s20}); if(series.length>=50)ov.push({name:'MM50',data:s50}); }
-    else { const s=sma(closes,30); ov.push({name:'MM30 (hebdo)',data:s}); }
+    if(APER!=='max'){ const sF=sma(closes,fastP); ov.push({name:'MM'+fastP,data:sF}); if(series.length>=slowP){const sS=sma(closes,slowP);ov.push({name:'MM'+slowP,data:sS});} }
+    else { const s=sma(closes,Math.max(2,Math.round(fastP/7))); ov.push({name:'MM'+Math.max(2,Math.round(fastP/7))+' (hebdo)',data:s}); }
   }
   lineChart(document.getElementById('priceChart'),series,ov);
   // TA sur le journalier (300 derniers jours)
@@ -285,6 +322,18 @@ function renderAnalyse(){
     cell(r.yld!=null?r.yld.toFixed(1)+'%':'n/d','Rdt net')+
     cell(score(r,PROF)??'—','Score '+PROF);
   CURRENT_TA={tk,nom:r.nom,price,trend,rsiN,rsiSig,macdSig,pos52,vol,r};
+  document.getElementById('fiche').innerHTML=
+    cell(r.nom+' <span class="mono" style="font-size:.62rem;color:var(--gold-dim)">'+r.tk+'</span>','Valeur')+
+    cell(r.sec,'Secteur')+
+    cell(r.paysNom||r.pays,'Pays')+
+    cell(r.cap?fmtB(r.cap):'n/d','Capitalisation')+
+    cell(r.pe!=null?r.pe.toFixed(1)+'×':'n/d','PER')+
+    cell(r.pb!=null?r.pb.toFixed(2)+'×':'n/d','P/B')+
+    cell(r.yld!=null?r.yld.toFixed(1)+'%':'n/d','Rdt net')+
+    cell(r.payout!=null?r.payout+'%':'n/d','Payout', r.payout&&r.payout>95?'sig-sell':'')+
+    cell((r.lo52!=null&&r.hi52!=null)?fmt(r.lo52)+' – '+fmt(r.hi52):'n/d','Plage 52 sem.')+
+    cell(r.rating?`<span class="rt ${RTC[r.rating]||''}">${r.rating}</span>`:'n/d','Avis interne')+
+    (r.note?`<div style="grid-column:1/-1;font-size:.78rem;color:var(--ink-soft);margin-top:.4rem">${r.note}</div>`:'');
 }
 
 /* ===== CONSEIL IA (appel à Claude) ===== */
