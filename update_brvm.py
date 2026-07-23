@@ -74,6 +74,94 @@ REF = {
  "PRSC":dict(nom="—",sec="?",pays="CI",conf=0,note="⚠ Ticker non identifié."),
 }
 
+BRVM_BASE = "https://www.brvm.org"
+
+# Slugs brvm.org pour la page rapports (rapports-societe-cotes/{slug})
+# Dérivés du site officiel ; compléter au besoin.
+REPORT_SLUGS = {
+    # Télécoms
+    "SNTS":"sonatel","ORAC":"orange-ci","ONTBF":"onatel-bf",
+    # Banques
+    "ETIT":"ecobank-tg","ECOC":"ecobank-ci","SGBC":"sgci","SIBC":"sib",
+    "CBIBF":"coris-bank-international","NSBC":"nsbc","BICC":"bici-ci","BICB":"biic",
+    "ORGT":"oragroup",
+    "BOAB":"bank-africa-bn","BOABF":"bank-africa-bf","BOAC":"bank-africa-ci",
+    "BOAM":"bank-africa-ml","BOAN":"bank-africa-ng","BOAS":"bank-africa-sn",
+    # Distribution / Industrie
+    "BNBC":"bernabe-ci","CFAC":"cfao-motors-ci","SEMC":"crown-siem-ci",
+    "CABC":"sicable","SICC":"sicor","FTSC":"filtisac-ci",
+    # Énergie
+    "SHEC":"vivo-energy-ci","TTLC":"total","TTLS":"totalenergies-marketing-sn","SMBC":"smb",
+    # Agro-industrie
+    "PALC":"palm-ci","SPHC":"saph-ci","SOGC":"sogb","SCRC":"sucrivoire",
+    # Conso. / Services
+    "NTLC":"nestle-ci","UNLC":"unilever-ci","SLBC":"solibra","STBC":"sitab",
+    "UNXC":"uniwax-ci","ABJC":"servair-abidjan-ci","SAFC":"safca-ci",
+    # Utilities
+    "CIEC":"cie-ci","SDCC":"sodeci",
+    # Autres
+    "LNBB":"lnb","NEIC":"nei-ceda-ci","STAC":"setao-ci",
+}
+
+def fetch_company_reports(slug, max_docs=6):
+    """Récupère les liens PDF de rapports depuis brvm.org pour un slug donné."""
+    url = f"{BRVM_BASE}/fr/rapports-societe-cotes/{slug}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        html = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "ignore")
+    except Exception:
+        return []
+    docs = []
+    # Extrait tous les liens PDF (href absolu ou relatif vers /sites/default/files/)
+    for m in re.finditer(
+        r'href="((?:https?://www\.brvm\.org)?/sites/default/files/[^"]+\.pdf)"',
+        html
+    ):
+        path = m.group(1)
+        full_url = path if path.startswith("http") else BRVM_BASE + path
+        fname = full_url.split("/")[-1]
+        # Titre lisible à partir du nom de fichier
+        title = fname.replace(".pdf","").replace("_"," ").strip()
+        # Détecte le type
+        fl = fname.lower()
+        if "annuel" in fl or "annual" in fl:
+            typ = "Rapport annuel"
+        elif "semestre" in fl or "semestr" in fl or "-h1-" in fl or "-h2-" in fl:
+            typ = "Semestriel"
+        elif "trimest" in fl or "-q1-" in fl or "-q2-" in fl or "-q3-" in fl or "-q4-" in fl:
+            typ = "Trimestriel"
+        elif "etat" in fl or "financier" in fl:
+            typ = "États financiers"
+        else:
+            typ = "Document"
+        # Date : les 8 premiers chiffres du nom de fichier (YYYYMMDD)
+        dm = re.match(r'^(\d{4})(\d{2})(\d{2})', fname)
+        date = f"{dm.group(1)}-{dm.group(2)}-{dm.group(3)}" if dm else ""
+        docs.append({"title": title[:80], "type": typ, "date": date,
+                     "url": full_url})
+    # Dédoublonnage par URL
+    seen = set()
+    out = []
+    for d in docs:
+        if d["url"] not in seen:
+            seen.add(d["url"])
+            out.append(d)
+        if len(out) >= max_docs:
+            break
+    return out
+
+def fetch_all_reports(tickers):
+    """Scrape les rapports brvm.org pour tous les tickers connus."""
+    reports = {}
+    for tk in tickers:
+        slug = REPORT_SLUGS.get(tk)
+        if not slug:
+            continue
+        docs = fetch_company_reports(slug)
+        if docs:
+            reports[tk] = docs
+    return reports
+
 def fetch_repo():
     print("→ Téléchargement des données BRVM…")
     raw = urllib.request.urlopen(REPO, timeout=60).read()
@@ -154,17 +242,27 @@ def main():
         sys.exit("brvm-intelligence.html introuvable dans ce dossier. Place ce script à côté du fichier HTML.")
     files=fetch_repo()
     snap=build(files)
+    tickers=[r["tk"] for r in snap["records"]]
+    print("→ Récupération des rapports brvm.org…")
+    reports=fetch_all_reports(tickers)
+    print(f"  {len(reports)} sociétés avec rapports trouvés.")
     html=open(HTML,encoding="utf-8").read()
     has_hist = "const HISTORY = " in html
-    html=swap(html,"DATA",json.dumps(snap,ensure_ascii=False,separators=(',',':')),
-              "const HISTORY = " if has_hist else "const EUR")
+    has_rep  = "const REPORTS = " in html
+    # Ordre des ancres dans le HTML : DATA → HISTORY → REPORTS → EUR
+    next_after_data = "const HISTORY = " if has_hist else ("const REPORTS = " if has_rep else "const EUR")
+    html=swap(html,"DATA",json.dumps(snap,ensure_ascii=False,separators=(',',':')), next_after_data)
     if has_hist:
         hist=build_history(files)
-        html=swap(html,"HISTORY",json.dumps(hist,ensure_ascii=False,separators=(',',':')),"const EUR")
+        next_after_hist = "const REPORTS = " if has_rep else "const EUR"
+        html=swap(html,"HISTORY",json.dumps(hist,ensure_ascii=False,separators=(',',':')), next_after_hist)
+    if has_rep:
+        html=swap(html,"REPORTS",json.dumps(reports,ensure_ascii=False,separators=(',',':')),"const EUR")
     open(HTML,"w",encoding="utf-8").write(html)
     print(f"✓ Mis à jour. {len(snap['records'])} valeurs · cours au {snap['records'][0]['date']} · "
           f"Composite {snap['indices']['Composite']['close']} ({snap['indices']['Composite']['ytd']:+.1f}% YTD)"
-          + (" · historique graphiques rafraîchi" if has_hist else ""))
+          + (" · historique graphiques rafraîchi" if has_hist else "")
+          + (f" · {len(reports)} rapports intégrés" if reports else ""))
 
 if __name__=="__main__":
     main()
