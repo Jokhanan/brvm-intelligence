@@ -90,6 +90,38 @@ svg.chart{width:100%;height:auto;display:block;font-family:'Space Mono',monospac
 .rpt-label b{font-weight:600}
 .rpt-link{font-family:'Space Mono',monospace;font-size:.68rem;color:var(--gold);text-decoration:none;white-space:nowrap;margin-left:.5rem;opacity:.85}
 .rpt-link:hover{opacity:1;text-decoration:underline}
+
+/* ===== CHAT FLOTTANT ===== */
+#chat-btn{position:fixed;bottom:1.4rem;right:1.4rem;width:52px;height:52px;border-radius:50%;background:var(--indigo);border:2px solid var(--gold);color:var(--gold);font-size:1.4rem;cursor:pointer;z-index:100;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:transform .15s}
+#chat-btn:hover{transform:scale(1.08)}
+#chat-btn .badge{position:absolute;top:-4px;right:-4px;background:#B0533A;color:#fff;font-size:.55rem;font-family:'Space Mono',monospace;border-radius:10px;padding:.1rem .3rem;display:none}
+#chat-panel{position:fixed;bottom:5rem;right:1.4rem;width:min(420px,96vw);height:min(600px,80vh);background:var(--cream);border:1px solid var(--gold-line);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.28);display:none;flex-direction:column;z-index:99;overflow:hidden}
+#chat-panel.open{display:flex}
+#chat-head{background:var(--indigo);color:var(--gold);padding:.7rem 1rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#chat-head span{font-family:'Fraunces',serif;font-size:1rem;font-weight:600}
+#chat-head small{font-family:'Space Mono',monospace;font-size:.58rem;color:#9B93B0;margin-left:.5rem}
+#chat-close{background:none;border:none;color:var(--gold-soft);font-size:1.2rem;cursor:pointer;padding:0 .2rem}
+#chat-close:hover{color:var(--gold)}
+#chat-clear{background:none;border:none;color:#9B93B0;font-size:.65rem;font-family:'Space Mono',monospace;cursor:pointer;padding:0 .3rem}
+#chat-clear:hover{color:#B0533A}
+#chat-msgs{flex:1;overflow-y:auto;padding:.8rem;display:flex;flex-direction:column;gap:.6rem}
+.cm{max-width:88%;padding:.55rem .75rem;border-radius:10px;font-size:.82rem;line-height:1.55;word-wrap:break-word}
+.cm.u{align-self:flex-end;background:var(--indigo);color:#E8E2D6;border-bottom-right-radius:3px}
+.cm.a{align-self:flex-start;background:#fff;border:1px solid var(--line);color:var(--ink);border-bottom-left-radius:3px}
+.cm.a h4{font-family:'Fraunces',serif;color:var(--gold-soft);font-size:.85rem;margin:.5rem 0 .15rem;font-weight:600}
+.cm.a h4:first-child{margin-top:0}
+.cm.a strong{color:var(--indigo);font-weight:600}
+.cm.sys{align-self:center;background:transparent;color:var(--ink-soft);font-size:.68rem;font-family:'Space Mono',monospace;text-align:center;padding:.2rem .4rem;border:none}
+#chat-typing{align-self:flex-start;background:#fff;border:1px solid var(--line);border-radius:10px;padding:.55rem .75rem;font-size:.78rem;color:var(--ink-soft);font-style:italic;display:none}
+#chat-foot{padding:.6rem .8rem;border-top:1px solid var(--line);display:flex;gap:.5rem;flex-shrink:0;background:var(--cream)}
+#chat-input{flex:1;border:1px solid var(--line);border-radius:8px;padding:.45rem .65rem;font-size:.82rem;font-family:'Space Grotesk',sans-serif;background:#fff;color:var(--ink);resize:none;height:38px;max-height:90px;overflow-y:auto}
+#chat-input:focus{outline:none;border-color:var(--gold)}
+#chat-send{background:var(--indigo);color:var(--gold);border:none;border-radius:8px;padding:.45rem .8rem;font-size:.85rem;cursor:pointer;flex-shrink:0}
+#chat-send:hover{background:#2a2450}
+#chat-send:disabled{opacity:.4;cursor:default}
+#chat-key-wrap{padding:.4rem .8rem;border-top:1px solid var(--line);background:#faf8f3;flex-shrink:0;display:flex;align-items:center;gap:.4rem}
+#chat-key-wrap input{flex:1;font-size:.7rem;padding:.25rem .4rem;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink)}
+#chat-key-wrap label{font-size:.62rem;color:var(--ink-soft);font-family:'Space Mono',monospace;white-space:nowrap}
 </style></head>
 <body>
 <header><div class="hwrap">
@@ -416,5 +448,228 @@ function renderDiv(){const dr=recs.filter(r=>r.yld!=null).sort((a,b)=>b.yld-a.yl
 function renderMovers(){const yv=recs.filter(r=>r.ytd!=null);const top=[...yv].sort((a,b)=>b.ytd-a.ytd).slice(0,6),bot=[...yv].sort((a,b)=>a.ytd-b.ytd).slice(0,6),liq=[...recs].sort((a,b)=>b.turnover-a.turnover).slice(0,6);const mk=(t,arr,key,col)=>`<div class="panel"><div class="eyebrow" style="margin-bottom:.6rem">${t}</div>${arr.map(r=>`<div style="display:flex;justify-content:space-between;padding:.26rem 0;border-top:1px solid var(--line);cursor:pointer" onclick="asel.value='${r.tk}';document.querySelector('nav.tabs button[data-tab=analyse]').click();renderAnalyse();"><span style="font-weight:600">${r.nom} <span style="font-family:Space Mono;font-size:.58rem;color:var(--gold-dim)">${r.tk}</span></span><span class="mono ${col?cls(r[key]):''}" style="${col?'':'color:var(--ink-soft)'}">${col?pct(r[key]):fmtB(r[key])+'/j'}</span></div>`).join('')}</div>`;document.getElementById('movers').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.9rem">${mk('Top hausses YTD',top,'ytd',1)}${mk('Top baisses YTD',bot,'ytd',1)}${mk('Plus liquides',liq,'turnover',0)}</div>`;}
 
 renderScreen();renderAnalyse();renderPF();renderDiv();renderMovers();
+</script>
+
+<!-- ===== CHATBOT FLOTTANT ===== -->
+<button id="chat-btn" onclick="toggleChat()" title="Assistant BRVM IA">💬<span class="badge" id="chat-badge"></span></button>
+
+<div id="chat-panel">
+  <div id="chat-head">
+    <div>
+      <span>Conseiller BRVM</span>
+      <small id="chat-model">claude-opus-4-8</small>
+    </div>
+    <div style="display:flex;gap:.4rem;align-items:center">
+      <button id="chat-clear" onclick="clearHistory()" title="Effacer l'historique">🗑 Effacer</button>
+      <button id="chat-close" onclick="toggleChat()">✕</button>
+    </div>
+  </div>
+  <div id="chat-key-wrap">
+    <label>Clé API</label>
+    <input type="password" id="chat-api-key" placeholder="sk-ant-…" autocomplete="off" oninput="saveChatKey()">
+  </div>
+  <div id="chat-msgs"></div>
+  <div id="chat-typing">L'IA réfléchit…</div>
+  <div id="chat-foot">
+    <textarea id="chat-input" placeholder="Posez une question sur la BRVM…" rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+    <button id="chat-send" onclick="sendChat()">➤</button>
+  </div>
+</div>
+
+<script>
+(function(){
+/* ---- state ---- */
+const HIST_KEY='brvm_chat_history';
+const KEY_KEY='brvm_anthropic_key';
+const MAX_HIST=30; // messages kept in localStorage
+let hist=[];
+let open=false;
+
+/* ---- init ---- */
+function init(){
+  const saved=localStorage.getItem(HIST_KEY);
+  if(saved){try{hist=JSON.parse(saved);}catch(e){hist=[];}}
+  const k=localStorage.getItem(KEY_KEY)||'';
+  document.getElementById('chat-api-key').value=k;
+  renderHistory();
+}
+
+function saveChatKey(){
+  const k=document.getElementById('chat-api-key').value.trim();
+  if(k) localStorage.setItem(KEY_KEY,k);
+}
+
+function toggleChat(){
+  open=!open;
+  document.getElementById('chat-panel').classList.toggle('open',open);
+  if(open){
+    document.getElementById('chat-badge').style.display='none';
+    scrollBottom();
+    document.getElementById('chat-input').focus();
+  }
+}
+window.toggleChat=toggleChat;
+
+function clearHistory(){
+  if(!confirm('Effacer tout l\'historique de conversation ?')) return;
+  hist=[];
+  localStorage.removeItem(HIST_KEY);
+  document.getElementById('chat-msgs').innerHTML='';
+  addSysMsg('Historique effacé.');
+}
+window.clearHistory=clearHistory;
+
+/* ---- rendering ---- */
+function renderHistory(){
+  const el=document.getElementById('chat-msgs');
+  el.innerHTML='';
+  if(hist.length===0){
+    addSysMsg('Bonjour ! Je suis votre conseiller BRVM. Posez-moi une question sur les marchés, les entreprises cotées ou votre portefeuille.');
+  } else {
+    hist.forEach(m=>appendMsg(m.role,m.content,false));
+  }
+  scrollBottom();
+}
+
+function addSysMsg(txt){
+  const d=document.createElement('div');
+  d.className='cm sys';
+  d.textContent=txt;
+  document.getElementById('chat-msgs').appendChild(d);
+}
+
+function appendMsg(role,content,save=true){
+  const el=document.getElementById('chat-msgs');
+  const d=document.createElement('div');
+  d.className='cm '+(role==='user'?'u':'a');
+  // basic markdown: **bold**, # heading
+  let html=content
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/^#{1,3} (.+)$/gm,'<h4>$1</h4>')
+    .replace(/\n/g,'<br>');
+  d.innerHTML=html;
+  el.appendChild(d);
+  if(save){
+    hist.push({role,content});
+    if(hist.length>MAX_HIST) hist.splice(0,hist.length-MAX_HIST);
+    localStorage.setItem(HIST_KEY,JSON.stringify(hist));
+  }
+  scrollBottom();
+  // badge if closed
+  if(!open && role==='assistant'){
+    const b=document.getElementById('chat-badge');
+    b.style.display='block';
+    b.textContent='!';
+  }
+}
+
+function scrollBottom(){
+  const el=document.getElementById('chat-msgs');
+  el.scrollTop=el.scrollHeight;
+}
+
+/* ---- system prompt builder ---- */
+function buildSystemPrompt(){
+  // Stocks summary
+  const stockLines=DATA.map(r=>{
+    const parts=[r.tk,r.nom,'secteur:'+r.sec,'cours:'+r.close,'j%:'+r.day,'ytd:'+(r.ytd!=null?r.ytd:'n/d'),'rating:'+(r.rating||'n/d')];
+    if(r.yld) parts.push('div_rdt:'+r.yld+'%');
+    if(r.hi52||r.lo52) parts.push('52s:'+r.lo52+'–'+r.hi52);
+    return parts.join(' | ');
+  }).join('\n');
+
+  // Reports summary (just count per company)
+  const rptLines=Object.entries(REPORTS).map(([tk,arr])=>{
+    if(!arr||!arr.length) return null;
+    return tk+': '+arr.length+' rapport(s) — '+arr.slice(0,2).map(d=>d.type+(d.date?' '+d.date:'')).join(', ');
+  }).filter(Boolean).join('\n');
+
+  // Portfolio
+  const pfLines=PF.map(p=>{
+    const r=DATA.find(d=>d.tk===p.tk)||{};
+    return p.tk+' qty:'+p.qty+' px_achat:'+p.buy+(r.close?' cours_actuel:'+r.close:'');
+  }).join('\n');
+
+  return `Tu es un conseiller financier spécialisé sur la BRVM (Bourse Régionale des Valeurs Mobilières d'Afrique de l'Ouest).
+Tu as accès en temps réel aux données suivantes issues du dashboard BRVM Intelligence.
+
+## Marché BRVM — ${DATA.length} valeurs cotées
+${stockLines}
+
+## Portefeuille utilisateur
+${pfLines||'Aucun portefeuille défini.'}
+
+## Rapports disponibles (annuels/semestriels scrappés depuis brvm.org)
+${rptLines||'Aucun rapport chargé.'}
+
+## Instructions
+- Réponds en français, de manière concise et professionnelle.
+- Tu peux comparer des valeurs, calculer des rendements, identifier des opportunités ou des risques.
+- Pour les rapports, tu peux indiquer lesquels existent mais tu ne peux pas en lire le contenu (PDFs externes).
+- Ne fournis pas de conseils financiers personnalisés réglementés — précise que c'est à titre indicatif.
+- Si on te demande des cours en temps réel, précise que les données datent du dernier run de l'Action GitHub.
+- Tu peux maintenir une conversation multi-tours et faire référence aux échanges précédents.`;
+}
+
+/* ---- API call ---- */
+async function sendChat(){
+  const inp=document.getElementById('chat-input');
+  const msg=inp.value.trim();
+  if(!msg) return;
+  const apiKey=(document.getElementById('chat-api-key').value||'').trim()||localStorage.getItem(KEY_KEY)||'';
+  if(!apiKey){alert('Entrez votre clé API Claude dans le champ ci-dessus.');return;}
+
+  inp.value='';
+  inp.style.height='38px';
+  appendMsg('user',msg);
+
+  const send=document.getElementById('chat-send');
+  const typing=document.getElementById('chat-typing');
+  send.disabled=true;
+  typing.style.display='block';
+  scrollBottom();
+
+  // build messages array (last MAX_HIST turns)
+  const messages=hist.slice(-MAX_HIST).map(m=>({role:m.role,content:m.content}));
+
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-opus-4-8',
+        max_tokens:1024,
+        system:buildSystemPrompt(),
+        messages:messages
+      })
+    });
+    const data=await resp.json();
+    if(data.error) throw new Error(data.error.message);
+    const reply=data.content&&data.content[0]&&data.content[0].text||'(réponse vide)';
+    appendMsg('assistant',reply);
+  } catch(e){
+    appendMsg('assistant','⚠ Erreur : '+e.message);
+  } finally {
+    send.disabled=false;
+    typing.style.display='none';
+  }
+}
+window.sendChat=sendChat;
+
+/* ---- auto-resize textarea ---- */
+document.getElementById('chat-input').addEventListener('input',function(){
+  this.style.height='38px';
+  this.style.height=Math.min(this.scrollHeight,90)+'px';
+});
+
+init();
+})();
 </script>
 </body></html>
