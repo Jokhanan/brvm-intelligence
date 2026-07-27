@@ -573,7 +573,7 @@ function scrollBottom(){
 /* ---- system prompt builder ---- */
 function buildSystemPrompt(){
   // Stocks summary
-  const stockLines=DATA.map(r=>{
+  const recs2=DATA.records||DATA;const stockLines=recs2.map(r=>{
     const parts=[r.tk,r.nom,'secteur:'+r.sec,'cours:'+r.close,'j%:'+r.day,'ytd:'+(r.ytd!=null?r.ytd:'n/d'),'rating:'+(r.rating||'n/d')];
     if(r.yld) parts.push('div_rdt:'+r.yld+'%');
     if(r.hi52||r.lo52) parts.push('52s:'+r.lo52+'–'+r.hi52);
@@ -587,9 +587,9 @@ function buildSystemPrompt(){
   }).filter(Boolean).join('\n');
 
   // Portfolio
-  const pfLines=PF.map(p=>{
-    const r=DATA.find(d=>d.tk===p.tk)||{};
-    return p.tk+' qty:'+p.qty+' px_achat:'+p.buy+(r.close?' cours_actuel:'+r.close:'');
+  const pfArr=(DATA.portfolio||[]);const pfLines=pfArr.map(p=>{
+    const tk2=Array.isArray(p)?p[0]:p.tk;const qty2=Array.isArray(p)?p[1]:p.qty;const buy2=Array.isArray(p)?p[2]:p.buy;const r=recs2.find(d=>d.tk===tk2)||{};
+    return tk2+' qty:'+qty2+(buy2?' px_achat:'+buy2:'')+(r.close?' cours_actuel:'+r.close:'');
   }).join('\n');
 
   return `Tu es un conseiller financier spécialisé sur la BRVM (Bourse Régionale des Valeurs Mobilières d'Afrique de l'Ouest).
