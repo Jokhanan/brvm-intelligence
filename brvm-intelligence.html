@@ -191,12 +191,13 @@ svg.chart{width:100%;height:auto;display:block;font-family:'Space Mono',monospac
  </div>
 
  <div class="tabpane" id="portef">
-  <h2 class="ph">Portefeuille modèle — valorisé en direct</h2>
-  <p class="psub">Portefeuille équilibré 7 lignes de la note de recherche, aux cours réels. Saisis ton capital.</p>
-  <div class="controls"><span class="ctlbl">Capital</span><input type="text" id="cap" value="5 000 000" style="width:150px"><span class="mono" style="font-size:.8rem">FCFA</span><span class="mono" style="font-size:.74rem;color:var(--ink-soft)" id="capeur"></span></div>
+  <h2 class="ph">Mon portefeuille — valorisé en direct</h2>
+  <p class="psub">Ajoutez vos titres réels. Les données sont sauvegardées dans votre navigateur (localStorage).</p>
+  <div class="controls" id="pf-add-form" style="flex-wrap:wrap;gap:.4rem"></div>
   <div class="kpis" id="pfkpis"></div>
   <div class="tw"><table id="pftbl"><thead><tr id="pfhead"></tr></thead><tbody id="pfbody"></tbody></table></div>
   <div class="note-box" id="pfnote"></div>
+  <input type="hidden" id="cap" value="0"><span id="capeur" style="display:none"></span>
  </div>
 
  <div class="tabpane" id="div">
@@ -437,9 +438,90 @@ Structure ta réponse avec ces titres EXACTEMENT (préfixe ###) et 2-3 phrases m
 };
 
 /* ===== PORTEFEUILLE ===== */
-const PFW={'SNTS':'Ancre revenu','CBIBF':'Moteur croissance','SIBC':'Qualité + croissance','ORAC':'Revenu télécom','SDCC':'Défensif (eau)','CIEC':'Défensif (élec.)','ETIT':'Optionnalité deep-value'};
-function renderPF(){const cap=parseFloat(document.getElementById('cap').value.replace(/[^\d]/g,''))||0;document.getElementById('capeur').textContent='≈ '+fmt(cap/EUR)+' €';let tot=0,rows='';DATA.portfolio.forEach(([tk,wt])=>{const r=recs.find(x=>x.tk===tk);if(!r)return;const al=cap*wt/100,nb=Math.floor(al/r.close),inv=nb*r.close,di=r.yld!=null?inv*r.yld/100:null;if(di)tot+=di;rows+=`<tr data-tk="${tk}"><td class="l nm">${r.nom}<div style="font-family:Space Mono;font-size:.56rem;color:var(--gold-dim)">${tk} · ${PFW[tk]||''}</div></td><td class="mono">${wt}%</td><td class="mono">${fmt(r.close)}</td><td class="mono">${fmt(nb)}</td><td class="mono">${fmt(inv)}</td><td class="mono" style="color:var(--ink-soft)">${fmt(inv/EUR)} €</td><td class="mono">${r.yld!=null?r.yld.toFixed(1)+'%':'n/d'}</td><td class="mono ${di?'up':''}">${di?fmt(di):'n/d'}</td></tr>`;});document.getElementById('pfhead').innerHTML=['Valeur','Cible','Cours','Qté','Investi FCFA','Investi €','Rdt net','Div/an'].map((h,i)=>`<th class="${i===0?'l':''}">${h}</th>`).join('');document.getElementById('pfbody').innerHTML=rows;document.querySelectorAll('#pfbody tr').forEach(tr=>tr.onclick=()=>{asel.value=tr.dataset.tk;document.querySelector('nav.tabs button[data-tab=analyse]').click();renderAnalyse();});const by=cap?tot/cap*100:0;document.getElementById('pfkpis').innerHTML=`<div class="kpi"><div class="v">${fmt(cap)}</div><div class="l">Capital FCFA</div></div><div class="kpi"><div class="v">${fmt(cap/EUR)} €</div><div class="l">≈ euros</div></div><div class="kpi"><div class="v">${fmt(tot)}</div><div class="l">Div. net/an (lignes connues)</div></div><div class="kpi"><div class="v">${by.toFixed(1)}%</div><div class="l">Rdt net pondéré (partiel)</div></div>`;document.getElementById('pfnote').innerHTML='<b>Lecture.</b> Le dividende n\'est compté que sur les lignes au dividende connu (Sonatel, Coris, SIB, Ecobank) — le rendement réel total est un peu supérieur avec Orange CI, SODECI, CIE. Banques ~40%, télécoms ~36%, utilities ~20%. Pas de risque de change (peg FCFA). Pense à déclarer le compte étranger (3916) et à vérifier la convention fiscale par pays (Coris/Burkina, IRVM 12,5%).';}
-document.getElementById('cap').addEventListener('input',renderPF);
+/* ===== PORTEFEUILLE — localStorage ===== */
+const PF_KEY='brvm_portfolio';
+function loadPF(){try{return JSON.parse(localStorage.getItem(PF_KEY)||'[]');}catch(e){return [];}}
+function savePF(arr){localStorage.setItem(PF_KEY,JSON.stringify(arr));}
+
+function renderPF(){
+  const pf=loadPF();
+  const cap=parseFloat((document.getElementById('cap').value||'').replace(/[^\d]/g,''))||0;
+  document.getElementById('capeur').textContent='≈ '+fmt(cap/EUR)+' €';
+
+  // build add-row form
+  const opts=recs.map(r=>`<option value="${r.tk}">${r.nom} (${r.tk})</option>`).join('');
+  document.getElementById('pf-add-form').innerHTML=`
+    <select id="pf-tk"><option value="">— Choisir une valeur —</option>${opts}</select>
+    <input type="number" id="pf-qty" placeholder="Quantité" min="1" style="width:90px">
+    <input type="number" id="pf-buy" placeholder="Prix achat" min="0" step="0.01" style="width:110px">
+    <button onclick="addPFLine()" style="background:var(--indigo);color:var(--gold);border:none;border-radius:6px;padding:.3rem .7rem;cursor:pointer;font-size:.8rem">+ Ajouter</button>`;
+
+  if(pf.length===0){
+    document.getElementById('pfbody').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:1.5rem">Aucune position — ajoutez des titres ci-dessus.</td></tr>';
+    document.getElementById('pfhead').innerHTML=['Valeur','Qté','Prix achat','Cours actuel','P&L','Valeur totale','Rdt div',''].map((h,i)=>`<th class="${i===0?'l':''}">${h}</th>`).join('');
+    document.getElementById('pfkpis').innerHTML='';
+    document.getElementById('pfnote').innerHTML='';
+    return;
+  }
+
+  document.getElementById('pfhead').innerHTML=['Valeur','Qté','Prix achat','Cours actuel','P&L','Valeur totale','Rdt div',''].map((h,i)=>`<th class="${i===0?'l':''}">${h}</th>`).join('');
+
+  let totVal=0, totCost=0, totDiv=0;
+  let rows='';
+  pf.forEach((p,idx)=>{
+    const r=recs.find(x=>x.tk===p.tk);
+    if(!r)return;
+    const val=r.close*p.qty;
+    const cost=p.buy*p.qty;
+    const pl=val-cost;
+    const plPct=cost?pl/cost*100:0;
+    const di=r.yld!=null?val*r.yld/100:null;
+    totVal+=val; totCost+=cost; if(di)totDiv+=di;
+    rows+=`<tr data-tk="${p.tk}">
+      <td class="l nm">${r.nom}<br><span style="font-family:Space Mono;font-size:.54rem;color:var(--gold-dim)">${p.tk}</span></td>
+      <td class="mono">${p.qty}</td>
+      <td class="mono">${fmt(p.buy)}</td>
+      <td class="mono">${fmt(r.close)}</td>
+      <td class="mono ${pl>=0?'up':'down'}">${pl>=0?'+':''}${fmt(pl)} (${plPct.toFixed(1)}%)</td>
+      <td class="mono">${fmt(val)}</td>
+      <td class="mono">${r.yld!=null?r.yld.toFixed(1)+'%':'n/d'}</td>
+      <td><button onclick="removePFLine(${idx})" style="background:none;border:1px solid #B0533A;color:#B0533A;border-radius:4px;padding:.1rem .4rem;cursor:pointer;font-size:.72rem">✕</button></td>
+    </tr>`;
+  });
+  document.getElementById('pfbody').innerHTML=rows;
+  document.querySelectorAll('#pfbody tr').forEach(tr=>tr.querySelector('td.nm')&&(tr.querySelector('td.nm').style.cursor='pointer')&&(tr.querySelector('td.nm').onclick=()=>{asel.value=tr.dataset.tk;document.querySelector('nav.tabs button[data-tab=analyse]').click();renderAnalyse();}));
+
+  const totPl=totVal-totCost, totPlPct=totCost?totPl/totCost*100:0;
+  const rdt=totVal?totDiv/totVal*100:0;
+  document.getElementById('pfkpis').innerHTML=`
+    <div class="kpi"><div class="v">${fmt(totVal)}</div><div class="l">Valeur portefeuille</div></div>
+    <div class="kpi"><div class="v ${totPl>=0?'up':'down'}">${totPl>=0?'+':''}${fmt(totPl)}</div><div class="l">P&L total (${totPlPct.toFixed(1)}%)</div></div>
+    <div class="kpi"><div class="v">${fmt(totDiv)}</div><div class="l">Div. net/an estimé</div></div>
+    <div class="kpi"><div class="v">${rdt.toFixed(1)}%</div><div class="l">Rdt net sur valeur</div></div>`;
+  document.getElementById('pfnote').innerHTML='';
+}
+
+function addPFLine(){
+  const tk=document.getElementById('pf-tk').value;
+  const qty=parseInt(document.getElementById('pf-qty').value)||0;
+  const buy=parseFloat(document.getElementById('pf-buy').value)||0;
+  if(!tk||qty<=0||buy<=0){alert('Remplissez tous les champs (valeur, quantité, prix d\'achat).');return;}
+  const pf=loadPF();
+  const ex=pf.findIndex(p=>p.tk===tk);
+  if(ex>=0){pf[ex].qty+=qty;}
+  else{pf.push({tk,qty,buy});}
+  savePF(pf);
+  renderPF();
+}
+window.addPFLine=addPFLine;
+
+function removePFLine(idx){
+  const pf=loadPF();
+  pf.splice(idx,1);
+  savePF(pf);
+  renderPF();
+}
+window.removePFLine=removePFLine;
 
 /* ===== DIVIDENDES ===== */
 function renderDiv(){const dr=recs.filter(r=>r.yld!=null).sort((a,b)=>b.yld-a.yld);document.getElementById('divhead').innerHTML=['Valeur','Secteur','Cours','Div net/action','Rdt net','Payout','Alerte'].map((h,i)=>`<th class="${i<2?'l':''}">${h}</th>`).join('');document.getElementById('divbody').innerHTML=dr.map(r=>{const trap=(r.payout&&r.payout>95)||r.rating==='Avoid';return `<tr data-tk="${r.tk}"><td class="l nm">${r.nom}</td><td class="l"><span class="sec-pill">${r.sec}</span></td><td class="mono">${fmt(r.close)}</td><td class="mono">${fmt(r.yld*r.close/100)}</td><td class="mono" style="font-weight:700;color:var(--sage)">${r.yld.toFixed(2)}%</td><td class="mono ${r.payout&&r.payout>95?'down':''}">${r.payout?r.payout+'%':'n/d'}</td><td>${trap?'<span class="flag">⚠ piège ?</span>':'<span style="color:var(--sage)">—</span>'}</td></tr>`;}).join('');document.querySelectorAll('#divbody tr').forEach(tr=>tr.onclick=()=>{asel.value=tr.dataset.tk;document.querySelector('nav.tabs button[data-tab=analyse]').click();renderAnalyse();});}
@@ -587,9 +669,9 @@ function buildSystemPrompt(){
   }).filter(Boolean).join('\n');
 
   // Portfolio
-  const pfArr=(DATA.portfolio||[]);const pfLines=pfArr.map(p=>{
-    const tk2=Array.isArray(p)?p[0]:p.tk;const qty2=Array.isArray(p)?p[1]:p.qty;const buy2=Array.isArray(p)?p[2]:p.buy;const r=recs2.find(d=>d.tk===tk2)||{};
-    return tk2+' qty:'+qty2+(buy2?' px_achat:'+buy2:'')+(r.close?' cours_actuel:'+r.close:'');
+  const pfArr=loadPF();const pfLines=pfArr.map(p=>{
+    const r=recs2.find(d=>d.tk===p.tk)||{};
+    return p.tk+' qty:'+p.qty+(p.buy?' px_achat:'+p.buy:'')+(r.close?' cours_actuel:'+r.close:'');
   }).join('\n');
 
   return `Tu es un conseiller financier spécialisé sur la BRVM (Bourse Régionale des Valeurs Mobilières d'Afrique de l'Ouest).
